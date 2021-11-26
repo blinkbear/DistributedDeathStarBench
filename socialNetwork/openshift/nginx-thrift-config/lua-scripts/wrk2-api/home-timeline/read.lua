@@ -4,17 +4,6 @@ local function _StrIsEmpty(s)
   return s == nil or s == ''
 end
 
-local function _NgxInternalError(ngx, label, msg)
-  ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-  local ErrorMessage = "<no message>"
-  if not _StrIsEmpty(msg) then
-    ErrorMessage = msg
-  end
-  ngx.say(label .. ErrorMessage)
-  ngx.log(ngx.ERR, label .. ErrorMessage)
-  ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-end
-
 local function _LoadTimeline(data)
   local timeline = {}
   for _, timeline_post in ipairs(data) do
@@ -57,17 +46,18 @@ function _M.ReadHomeTimeline()
   local bridge_tracer = require "opentracing_bridge_tracer"
   local ngx = ngx
   local GenericObjectPool = require "GenericObjectPool"
-  local HomeTimelineServiceClient = require "social_network_HomeTimelineService"
+  local social_network_HomeTimelineService = require "social_network_HomeTimelineService"
+  local HomeTimelineServiceClient = social_network_HomeTimelineService.HomeTimelineServiceClient
   local cjson = require "cjson"
-  local jwt = require "resty.jwt"
   local liblualongnumber = require "liblualongnumber"
 
   local req_id = tonumber(string.sub(ngx.var.request_id, 0, 15), 16)
   local tracer = bridge_tracer.new_from_global()
   local parent_span_context = tracer:binary_extract(
       ngx.var.opentracing_binary_context)
-  local span = tracer:start_span("ReadHomeTimeline",
-      {["references"] = {{"child_of", parent_span_context}}})
+
+  local span = tracer:start_span("read_home_timeline_client",
+      { ["references"] = { { "child_of", parent_span_context } } })
   local carrier = {}
   tracer:text_map_inject(span:context(), carrier)
 
@@ -86,15 +76,26 @@ function _M.ReadHomeTimeline()
       HomeTimelineServiceClient, "home-timeline-service.social-network.svc.cluster.local", 9090)
   local status, ret = pcall(client.ReadHomeTimeline, client, req_id,
       tonumber(args.user_id), tonumber(args.start), tonumber(args.stop), carrier)
-  GenericObjectPool:returnConnection(client)
   if not status then
-    _NgxInternalError(ngx, "Get home-timeline failure: ", err.message)
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    if (ret.message) then
+      ngx.say("Get home-timeline failure: " .. ret.message)
+      ngx.log(ngx.ERR, "Get home-timeline failure: " .. ret.message)
+    else
+      ngx.say("Get home-timeline failure: " .. ret)
+      ngx.log(ngx.ERR, "Get home-timeline failure: " .. ret)
+    end
+    client.iprot.trans:close()
+    span:finish()
+    ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
   else
+    GenericObjectPool:returnConnection(client)
     local home_timeline = _LoadTimeline(ret)
     ngx.header.content_type = "application/json; charset=utf-8"
     ngx.say(cjson.encode(home_timeline) )
-
   end
+  span:finish()
+  ngx.exit(ngx.HTTP_OK)
 end
 
 return _M

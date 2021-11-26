@@ -37,14 +37,39 @@ spec:
     spec:
       containers:
       - name: home-timeline-service
-        image: yg397/social-network-microservices
+        image: t.harbor.siat.ac.cn:100/library/social-network:v2.0
         command: ["HomeTimelineService"]
         volumeMounts:
           - mountPath: /social-network-microservices/config/jaeger-config.yml
             subPath: jaeger-config.yml
             name: jaeger-conf-yaml
+          - mountPath: /keys/CA.pem
+            subPath: CA.pem
+            name: ca-pem
+          - mountPath: /keys/server.crt
+            subPath: server.crt
+            name: server-crt
+          - mountPath: /keys/server.key
+            subPath: server.key
+            name: server-key
+          - mountPath: /keys/server.pem
+            subPath: server.pem
+            name: server-pem
       restartPolicy: Always
       volumes:
         - name: jaeger-conf-yaml
           configMap:
             name: jaeger-config-yaml
+        - name: ca-pem
+          configMap:
+            name: ca-pem
+        - name: server-crt
+          configMap:
+            name: server-crt
+        - name: server-key
+          configMap:
+            name: server-key
+        - name: server-pem
+          configMap:
+            name: server-pem
+        

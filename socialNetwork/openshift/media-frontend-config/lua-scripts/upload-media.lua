@@ -11,7 +11,7 @@ local function _StringSplit(input_str, sep)
   return t
 end
 
-function _M.UploadMedia()
+function _M.ComposeMedia()
   local upload = require "resty.upload"
   local mongo = require "resty-mongol"
   local cjson = require "cjson"

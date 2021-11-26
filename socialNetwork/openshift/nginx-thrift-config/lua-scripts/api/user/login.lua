@@ -8,7 +8,7 @@ function _M.Login()
   local bridge_tracer = require "opentracing_bridge_tracer"
   local ngx = ngx
   local GenericObjectPool = require "GenericObjectPool"
-  local UserServiceClient = require "social_network_UserService"
+  local UserServiceClient = require "social_network_UserService".UserServiceClient
   local cjson = require "cjson"
 
   local req_id = tonumber(string.sub(ngx.var.request_id, 0, 15), 16)
@@ -21,7 +21,7 @@ function _M.Login()
   tracer:text_map_inject(span:context(), carrier)
 
   ngx.req.read_body()
-  local args = ngx.req.get_uri_args()
+  local args = ngx.req.get_post_args()
 
   if (_StrIsEmpty(args.username) or _StrIsEmpty(args.password)) then
     ngx.status = ngx.HTTP_BAD_REQUEST
@@ -55,7 +55,8 @@ function _M.Login()
     ngx.header.content_type = "text/plain"
     ngx.header["Set-Cookie"] = "login_token=" .. ret .. "; Path=/; Expires="
         .. ngx.cookie_time(ngx.time() + ngx.shared.config:get("cookie_ttl"))
-    ngx.redirect("../../index.html")
+
+    ngx.redirect("../../main.html?username=" .. args.username)
     ngx.exit(ngx.HTTP_OK)
   end
   span:finish()

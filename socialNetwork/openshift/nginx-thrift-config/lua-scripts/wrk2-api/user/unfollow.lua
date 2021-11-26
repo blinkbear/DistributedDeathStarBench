@@ -4,28 +4,18 @@ local function _StrIsEmpty(s)
   return s == nil or s == ''
 end
 
-local function _NgxInternalError(ngx, label, msg)
-  ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-  local ErrorMessage = "<no message>"
-  if not _StrIsEmpty(msg) then
-    ErrorMessage = msg
-  end
-  ngx.say(label .. ErrorMessage)
-  ngx.log(ngx.ERR, label .. ErrorMessage)
-  ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-end
-
 function _M.Unfollow()
   local bridge_tracer = require "opentracing_bridge_tracer"
   local ngx = ngx
   local GenericObjectPool = require "GenericObjectPool"
-  local SocialGraphServiceClient = require "social_network_SocialGraphService"
+  local social_network_SocialGraphService = require "social_network_SocialGraphService"
+  local SocialGraphServiceClient = social_network_SocialGraphService.SocialGraphServiceClient
 
   local req_id = tonumber(string.sub(ngx.var.request_id, 0, 15), 16)
   local tracer = bridge_tracer.new_from_global()
   local parent_span_context = tracer:binary_extract(
       ngx.var.opentracing_binary_context)
-  local span = tracer:start_span("Unollow",
+  local span = tracer:start_span("unfollow_client",
       {["references"] = {{"child_of", parent_span_context}}})
   local carrier = {}
   tracer:text_map_inject(span:context(), carrier)
@@ -52,10 +42,19 @@ function _M.Unfollow()
   end
 
   if not status then
-    _NgxInternalError(ngx, "Unfollow failed: ", err.message)
-  else
-    ngx.say("Successfully unfollowed.")
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    if (err.message) then
+      ngx.say("Unfollow Failed: " .. err.message)
+      ngx.log(ngx.ERR, "Unfollow Failed: " .. err.message)
+    else
+      ngx.say("Unfollow Failed: " .. err)
+      ngx.log(ngx.ERR, "Unfollow Failed: " .. err)
+    end
+    client.iprot.trans:close()
+    ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
   end
+
+  ngx.say("Success!")
   GenericObjectPool:returnConnection(client)
   span:finish()
 

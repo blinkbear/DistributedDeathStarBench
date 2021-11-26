@@ -4,17 +4,6 @@ local function _StrIsEmpty(s)
   return s == nil or s == ''
 end
 
-local function _NgxInternalError(ngx, label, msg)
-  ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-  local ErrorMessage = "<no message>"
-  if not _StrIsEmpty(msg) then
-    ErrorMessage = msg
-  end
-  ngx.say(label .. ErrorMessage)
-  ngx.log(ngx.ERR, label .. ErrorMessage)
-  ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-end
-
 local function _LoadTimeline(data)
   local user_timeline = {}
   for _, timeline_post in ipairs(data) do
@@ -57,7 +46,8 @@ function _M.ReadUserTimeline()
   local bridge_tracer = require "opentracing_bridge_tracer"
   local ngx = ngx
   local GenericObjectPool = require "GenericObjectPool"
-  local UserTimelineServiceClient = require "social_network_UserTimelineService"
+  local social_network_UserTimelineService = require "social_network_UserTimelineService"
+  local UserTimelineServiceClient = social_network_UserTimelineService.UserTimelineServiceClient
   local cjson = require "cjson"
   local liblualongnumber = require "liblualongnumber"
 
@@ -65,6 +55,7 @@ function _M.ReadUserTimeline()
   local tracer = bridge_tracer.new_from_global()
   local parent_span_context = tracer:binary_extract(
       ngx.var.opentracing_binary_context)
+
   local span = tracer:start_span("ReadUserTimeline",
       {["references"] = {{"child_of", parent_span_context}}})
   local carrier = {}
@@ -85,15 +76,27 @@ function _M.ReadUserTimeline()
       UserTimelineServiceClient, "user-timeline-service.social-network.svc.cluster.local", 9090)
   local status, ret = pcall(client.ReadUserTimeline, client, req_id,
       tonumber(args.user_id), tonumber(args.start), tonumber(args.stop), carrier)
-  GenericObjectPool:returnConnection(client)
   if not status then
-    _NgxInternalError(ngx, "Get user-timeline failure: ", err.message)
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    if (ret.message) then
+      ngx.say("Get user-timeline failure: " .. ret.message)
+      ngx.log(ngx.ERR, "Get user-timeline failure: " .. ret.message)
+    else
+      ngx.say("Get user-timeline failure: " .. ret)
+      ngx.log(ngx.ERR, "Get user-timeline failure: " .. ret)
+    end
+    client.iprot.trans:close()
+    span:finish()
+    ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
   else
+    GenericObjectPool:returnConnection(client)
     local user_timeline = _LoadTimeline(ret)
     ngx.header.content_type = "application/json; charset=utf-8"
     ngx.say(cjson.encode(user_timeline) )
 
   end
+  span:finish()
+  ngx.exit(ngx.HTTP_OK)
 end
 
 return _M

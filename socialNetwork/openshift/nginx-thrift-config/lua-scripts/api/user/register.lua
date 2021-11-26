@@ -8,7 +8,7 @@ function _M.RegisterUser()
   local bridge_tracer = require "opentracing_bridge_tracer"
   local ngx = ngx
   local GenericObjectPool = require "GenericObjectPool"
-  local UserServiceClient = require "social_network_UserService"
+  local UserServiceClient = require "social_network_UserService".UserServiceClient
 
   local req_id = tonumber(string.sub(ngx.var.request_id, 0, 15), 16)
   local tracer = bridge_tracer.new_from_global()
@@ -46,9 +46,10 @@ function _M.RegisterUser()
       ngx.log(ngx.ERR, "User registration failure: " .. err.message)
     end
     ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+  else
+    ngx.redirect("../../index.html")
+    ngx.exit(ngx.HTTP_OK)
   end
-
-
   span:finish()
 end
 
