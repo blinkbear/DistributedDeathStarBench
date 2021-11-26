@@ -4,7 +4,7 @@
 
 - A running Kubernetes cluster is needed.
 - Pre-requirements mentioned [here](https://github.com/delimitrou/DeathStarBench/blob/master/socialNetwork/README.md) should be met.
-
+- Note that the SSL configuration in the official image has been set as enabled, you should disabled it in the file `/social-network-microservices/config.json` in the image.
 ## Running the social network application on OpenShift
 
 ### Before you start
