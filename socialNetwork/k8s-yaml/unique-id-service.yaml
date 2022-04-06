@@ -43,6 +43,9 @@ spec:
           - mountPath: /social-network-microservices/config/jaeger-config.yml
             subPath: jaeger-config.yml
             name: jaeger-conf-yaml
+          - mountPath: /social-network-microservices/config/service-config.json
+            subPath: service-config.json
+            name: service-conf-json
           - mountPath: /keys/CA.pem
             subPath: CA.pem
             name: ca-pem
@@ -60,6 +63,9 @@ spec:
         - name: jaeger-conf-yaml
           configMap:
             name: jaeger-config-yaml
+        - name: service-conf-json
+          configMap:
+            name: service-conf-json
         - name: ca-pem
           configMap:
             name: ca-pem
